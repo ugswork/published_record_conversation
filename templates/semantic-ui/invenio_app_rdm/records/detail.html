@@ -36,14 +36,15 @@
   {%- set allow_guest_requests = current_user.is_anonymous and record.parent.access.settings.allow_guest_requests %}
 {%- endif %}
 
+{% set community_slug = community.slug if community is defined else None %}
+{% set request_data = record.id | comments_data(community_slug) %}
+
 {%- block head_meta %}
   {% if use_theme_basic_template|default(true) %}
     {{ super() }}
   {% endif %}
   {%- include "invenio_app_rdm/records/details/meta.html" %}
 {%- endblock head_meta %}
-
-
 
 
 {%- block page_body %}
@@ -68,7 +69,9 @@
               </div>
               <div class="page-subheader-element">
                 <a
-                  href="{{ url_for('invenio_app_rdm_communities.communities_detail', pid_value=community.slug) }}"> {{ community.metadata.title }}</a>
+                  href="{{ url_for('invenio_app_rdm_communities.communities_detail', pid_value=community.slug) }}"> 
+                        {{ community.metadata.title }}</a>
+
                 {% if is_community_restricted %}
                   <span
                     class="ui label horizontal small access-status restricted rel-ml-1"
@@ -131,46 +134,43 @@
   </section>
 
 
+  {# Only proceed if request_data is not None #}
+  {% if request_data is mapping and 'request' in request_data %}
+    {% set invenio_request =  request_data.request %}
 
-      {% set request_data = record.id | comments_data %}
-      
-      {# Only proceed if request_data is not None #}
-      {% if request_data is not none %}
-          {% if request_data is mapping %}
-              {% set invenio_request =  request_data.request %}
-              <div class="ui top attached tabular menu" id="detail-tab-menu">
-                  <a class="item active" data-tab="detail-record">{{ _('Record') }}</a>
-                  
-                  <a class="item" data-tab="detail-conversation">
-                      {{ _('Conversation') }}
-                  </a>
-              </div>
-  
-              <div class="ui bottom attached tab segment active" data-tab="detail-record" id="record-section">
-                  {% include "invenio_app_rdm/records/record_content.html" %}
-              </div>
-  
-              <div class="ui bottom attached tab segment" data-tab="detail-conversation" id="conversation-section">
-                  <!-- Conversation content here -->
-                  {% include "invenio_requests/details/conversation_index.html" %}
-              </div>
-          {% else %}
-              <div>
-                  <!-- Only show the record information if request_data is not a mapping (invalid format) -->
-                  <div class="ui segment">
-                     {% include "invenio_app_rdm/records/record_content.html" %}
-                  </div>
-              </div>
-          {% endif %}
-      {% else %}
-          <div>
-              <!-- Only show the record information if comments_url is None -->
-              <div class="ui segment">
-                  {% include "invenio_app_rdm/records/record_content.html" %}
-              </div>
-          </div>
-      {% endif %}
-  
+    <div class="ui tabular menu" id="detail-tab-menu" style="margin-bottom: 0px; margin-left: 20px;">
+        <a class="item active" id="record-tab" data-tab="detail-record"
+            style="font-weight: bold; background-color: #BABAB6; color: black; padding: 15px 25px; border-radius
+    : 4px; margin-right: 10px; box-shadow: 2px 2px 10px rgba(0, 86, 179, 0.2);">
+            {{ _('Record') }}
+        </a>
+
+        <a class="item" id="conversation-tab" data-tab="detail-conversation"
+            style="font-weight: bold; background-color: #DBDBDB; color: #5a5a5a; padding: 15px 25px; border-radius:
+    4px; margin-right: 10px; box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.1);">
+            {{ _('Conversation') }}
+        </a>
+    </div>
+
+    <div id="page-content" style="background-color: #f0f0f0; padding: 20px; border-radius: 8px;">
+        <div class="ui bottom attached tab segment active" data-tab="detail-record" id="record-section">
+            {% include "invenio_app_rdm/records/record_content.html" %}
+        </div>
+
+        <div class="ui bottom attached tab segment" data-tab="detail-conversation" id="conversation-section">
+            <!-- Conversation content here -->
+            <br><br>
+            {% include "invenio_requests/details/conversation_index.html" %}
+        </div>
+    </div>
+  {% else %}
+    <div>
+        <!-- Only show the record information if request_data is not a mapping (invalid format) -->
+        <div class="ui segment">
+           {% include "invenio_app_rdm/records/record_content.html" %}
+        </div>
+    </div>
+  {% endif %}
 
 {%- endblock page_body %}
 
@@ -194,8 +194,43 @@
   {{ webpack['invenio-app-rdm-landing-page.js'] }}
   {{ webpack['previewer_theme.js'] }}
 
+  {% if request_data is mapping and 'request' in request_data %}
+    {{ webpack['invenio-requests-base.js'] }}
+  {% endif  %}
+
   {# Tab javascript  #}
+
+
   <script>
-      $('#detail-tab-menu .item').tab();
+
+    var tabdarkgray = '#BABAB6';
+    var tablightgray = '#DBDBDB';
+
+    $('#detail-tab-menu .item').tab();
+
+    // Function to set styles for active and inactive tabs
+    function updateTabStyles(activeTab, inactiveTab) {
+      // Active tab styling (dark gray)
+      $(activeTab).css({ 'background-color': tabdarkgray, 'color': 'black' });
+
+      // Inactive tab styling (light gray)
+      $(inactiveTab).css({ 'background-color': tablightgray, 'color': '#5a5a5a' });
+
+      // Change the page background based on the active tab
+      $('#page-content').css('background-color', tabdarkgray);
+    }
+
+    // Set initial styles when page loads (default Record tab)
+    updateTabStyles('#record-tab', '#conversation-tab');
+
+    // Event listener for tab switching
+    $('#detail-tab-menu .item').on('click', function () {
+      if ($(this).attr('data-tab') === 'detail-record') {
+        updateTabStyles('#record-tab', '#conversation-tab');  // Set Record tab as active
+      } else if ($(this).attr('data-tab') === 'detail-conversation') {
+        updateTabStyles('#conversation-tab', '#record-tab');  // Set Conversation tab as active
+      }
+    });
   </script>
+
 {%- endblock javascript %}
